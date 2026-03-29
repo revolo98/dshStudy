@@ -195,63 +195,23 @@ def study_report(calendar_id, days=3):
     return by_date
 
 
-def refresh_kakao_token(refresh_token: str) -> str:
-    """카카오 액세스 토큰 갱신"""
-    res = requests.post("https://kauth.kakao.com/oauth/token", data={
-        "grant_type": "refresh_token",
-        "client_id": "a721c96b55df6f9fcbb9f6a837060b99",
-        "refresh_token": refresh_token,
-    })
-    data = res.json()
-    return data.get('access_token')
+SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL', '')
 
 
-def send_kakao(message: str):
-    """카카오톡 나에게 보내기"""
-    # GitHub Actions: 환경변수에서 토큰 로드
-    access_token = os.environ.get('KAKAO_ACCESS_TOKEN')
-    refresh_token = os.environ.get('KAKAO_REFRESH_TOKEN')
-
-    # 로컬: 파일에서 토큰 로드
-    if not access_token:
-        token_file = os.path.join(BASE_DIR, 'kakao_token.txt')
-        with open(token_file, 'r') as f:
-            lines = f.read().splitlines()
-        access_token = lines[0]
-        refresh_token = lines[1] if len(lines) > 1 else None
-
-    template = {
-        "object_type": "text",
-        "text": message,
-        "link": {"web_url": "", "mobile_web_url": ""}
-    }
+def send_slack(message: str):
+    """Slack 메시지 전송"""
     res = requests.post(
-        "https://kapi.kakao.com/v2/api/talk/memo/default/send",
-        headers={"Authorization": f"Bearer {access_token}"},
-        data={"template_object": json.dumps(template, ensure_ascii=False)}
+        SLACK_WEBHOOK_URL,
+        headers={"Content-Type": "application/json"},
+        data=json.dumps({"text": message}, ensure_ascii=False).encode('utf-8')
     )
-    result = res.json()
-    if result.get('result_code') == 0:
-        print("✅ 카카오톡 전송 완료!")
-    elif result.get('code') == -401 and refresh_token:
-        # 토큰 만료 시 갱신 후 재시도
-        print("토큰 만료, 갱신 중...")
-        new_token = refresh_kakao_token(refresh_token)
-        if new_token:
-            res2 = requests.post(
-                "https://kapi.kakao.com/v2/api/talk/memo/default/send",
-                headers={"Authorization": f"Bearer {new_token}"},
-                data={"template_object": json.dumps(template, ensure_ascii=False)}
-            )
-            if res2.json().get('result_code') == 0:
-                print("✅ 카카오톡 전송 완료! (토큰 갱신됨)")
-            else:
-                print("❌ 전송 실패:", res2.json())
+    if res.status_code == 200:
+        print("✅ Slack 전송 완료!")
     else:
-        print("❌ 전송 실패:", result)
+        print("❌ 전송 실패:", res.status_code, res.text)
 
 
-def study_report_text(calendar_id, days=3):
+def study_report_text(calendar_id, days=3, name=''):
     """공부 현황 리포트 텍스트 반환 + 카카오톡 전송"""
     service = get_service()
     now = datetime.datetime.now(datetime.UTC)
@@ -286,7 +246,8 @@ def study_report_text(calendar_id, days=3):
             'time': raw_date[11:16] if 'T' in raw_date else '',
         })
 
-    lines = [f"📚 공부 현황 리포트 (최근 {days}일)\n"]
+    title = f"{name} " if name else ""
+    lines = [f"📚 {title}공부 현황 리포트 (최근 {days}일)\n"]
     total_done = 0
     total_all = 0
 
@@ -313,10 +274,16 @@ def study_report_text(calendar_id, days=3):
     return message
 
 
+CALENDAR_USERS = {
+    'donghyun131013@gmail.com': '동현',
+}
+
+
 if __name__ == '__main__':
     print("=== 공부 현황 확인 ===")
-    msg = study_report_text(calendar_id='donghyun131013@gmail.com', days=3)
-    send_kakao(msg)
+    for calendar_id, name in CALENDAR_USERS.items():
+        msg = study_report_text(calendar_id=calendar_id, days=3, name=name)
+        send_slack(msg)
 
     # 2. 일정 추가 예시 (주석 해제 후 사용)
     # add_event(
