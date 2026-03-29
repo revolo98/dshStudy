@@ -1,0 +1,30 @@
+name: 공부 현황 리포트
+
+on:
+  schedule:
+    # 매일 오후 9시 (KST = UTC+9, 즉 UTC 12:00)
+    - cron: '0 12 * * *'
+  workflow_dispatch:  # 수동 실행 버튼
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: 공부 현황 리포트 실행
+        env:
+          GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
+          KAKAO_ACCESS_TOKEN: ${{ secrets.KAKAO_ACCESS_TOKEN }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+        run: python google_calendar.py
