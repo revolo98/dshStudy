@@ -198,12 +198,12 @@ def study_report(calendar_id, days=3):
 SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL', '')
 
 
-def send_slack(message: str, channel: str = '#아이들일정'):
-    """Slack 메시지 전송"""
+def send_slack(message: str):
+    """Slack 메시지 전송 (#아이들일정 채널)"""
     res = requests.post(
         SLACK_WEBHOOK_URL,
         headers={"Content-Type": "application/json"},
-        data=json.dumps({"text": message, "channel": channel}, ensure_ascii=False).encode('utf-8')
+        data=json.dumps({"text": message}, ensure_ascii=False).encode('utf-8')
     )
     if res.status_code == 200:
         print("✅ Slack 전송 완료!")
