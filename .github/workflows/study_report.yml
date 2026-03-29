@@ -25,5 +25,5 @@ jobs:
       - name: 공부 현황 리포트 실행
         env:
           GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_STUDY }}
         run: python google_calendar.py

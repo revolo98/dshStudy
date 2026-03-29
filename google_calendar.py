@@ -195,13 +195,14 @@ def study_report(calendar_id, days=3):
     return by_date
 
 
-SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL', '')
-
-
-def send_slack(message: str):
-    """Slack 메시지 전송 (#아이들일정 채널)"""
+def send_slack(message: str, webhook_url: str = ''):
+    """Slack 메시지 전송"""
+    url = webhook_url or os.environ.get('SLACK_WEBHOOK_URL', '')
+    if not url:
+        print("❌ Slack Webhook URL이 설정되지 않았습니다.")
+        return
     res = requests.post(
-        SLACK_WEBHOOK_URL,
+        url,
         headers={"Content-Type": "application/json"},
         data=json.dumps({"text": message}, ensure_ascii=False).encode('utf-8')
     )

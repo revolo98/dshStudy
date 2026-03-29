@@ -25,7 +25,7 @@ jobs:
       - name: 당일 일정 전송
         env:
           GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_SCHEDULE }}
         run: |
           python -c "
           from google_calendar import daily_schedule_text, send_slack, CALENDAR_USERS
