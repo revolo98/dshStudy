@@ -212,6 +212,123 @@ def send_slack(message: str, webhook_url: str = ''):
         print("❌ 전송 실패:", res.status_code, res.text)
 
 
+def send_slack_blocks(blocks: list, webhook_url: str = ''):
+    """Slack Block Kit 메시지 전송"""
+    url = webhook_url or os.environ.get('SLACK_WEBHOOK_URL', '')
+    if not url:
+        print("❌ Slack Webhook URL이 설정되지 않았습니다.")
+        return
+    res = requests.post(
+        url,
+        headers={"Content-Type": "application/json"},
+        data=json.dumps({"blocks": blocks}, ensure_ascii=False).encode('utf-8')
+    )
+    if res.status_code == 200:
+        print("✅ Slack 전송 완료!")
+    else:
+        print("❌ 전송 실패:", res.status_code, res.text)
+
+
+def mark_event_done(event_id, calendar_id='primary'):
+    """이벤트 설명에 '완료' 추가"""
+    service = get_service()
+    event = service.events().get(calendarId=calendar_id, eventId=event_id).execute()
+    description = event.get('description', '') or ''
+    if '완료' not in description:
+        event['description'] = (description + '\n완료').strip()
+        service.events().update(calendarId=calendar_id, eventId=event_id, body=event).execute()
+    return event
+
+
+def daily_schedule_blocks(calendar_id, name=''):
+    """당일 공부 일정을 Slack Block Kit 형식으로 반환 (완료 버튼 포함)"""
+    service = get_service()
+    kst = datetime.timezone(datetime.timedelta(hours=9))
+    today = datetime.datetime.now(kst).replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow = today + datetime.timedelta(days=1)
+
+    events_result = service.events().list(
+        calendarId=calendar_id,
+        timeMin=today.isoformat(),
+        timeMax=tomorrow.isoformat(),
+        singleEvents=True,
+        orderBy='startTime'
+    ).execute()
+
+    events = events_result.get('items', [])
+    subjects = ['국어', '영어', '수학']
+    study_events = []
+
+    for event in events:
+        title = event.get('summary', '')
+        matched = [s for s in subjects if s in title]
+        if not matched:
+            continue
+        raw_start = event['start'].get('dateTime', event['start'].get('date'))
+        time_str = raw_start[11:16] if 'T' in raw_start else '종일'
+        description = event.get('description', '') or ''
+        study_events.append({
+            'id': event['id'],
+            'subject': matched[0],
+            'title': title,
+            'time': time_str,
+            'done': '완료' in description,
+        })
+
+    title_name = f"{name} " if name else ""
+    date_str = today.strftime('%Y-%m-%d')
+    done_count = sum(1 for e in study_events if e['done'])
+    total = len(study_events)
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": f"📅 {title_name}오늘의 공부 일정 - {date_str}"}
+        }
+    ]
+
+    if not study_events:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "오늘 공부 일정이 없습니다."}
+        })
+    else:
+        for ev in study_events:
+            mark = "✅" if ev['done'] else "⬜"
+            section = {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"{mark} *[{ev['subject']}]* {ev['title']}  `{ev['time']}`"
+                }
+            }
+            if not ev['done']:
+                section["accessory"] = {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "완료 ✅"},
+                    "style": "primary",
+                    "action_id": f"mark_done_{ev['id']}",
+                    "value": json.dumps({
+                        "event_id": ev['id'],
+                        "calendar_id": calendar_id,
+                        "name": name
+                    })
+                }
+            blocks.append(section)
+
+        blocks.append({"type": "divider"})
+        overall = f"{done_count/total*100:.0f}%" if total > 0 else "일정없음"
+        blocks.append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"📊 완료율: *{overall}* ({done_count}/{total})"
+            }
+        })
+
+    return blocks
+
+
 def study_report_text(calendar_id, days=3, name=''):
     """공부 현황 리포트 텍스트 반환 + 카카오톡 전송"""
     service = get_service()

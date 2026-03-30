@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "src": "api/slack_action.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/slack_action",
+      "dest": "api/slack_action.py"
+    }
+  ]
+}

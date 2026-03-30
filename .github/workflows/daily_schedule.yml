@@ -22,15 +22,14 @@ jobs:
       - name: 패키지 설치
         run: pip install -r requirements.txt
 
-      - name: 당일 일정 전송
+      - name: 당일 일정 전송 (완료 버튼 포함)
         env:
           GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_SCHEDULE }}
         run: |
           python -c "
-          from google_calendar import daily_schedule_text, send_slack, CALENDAR_USERS
+          from google_calendar import daily_schedule_blocks, send_slack_blocks, CALENDAR_USERS
           for calendar_id, name in CALENDAR_USERS.items():
-              msg = daily_schedule_text(calendar_id=calendar_id, name=name)
-              print(msg)
-              send_slack(msg)
+              blocks = daily_schedule_blocks(calendar_id=calendar_id, name=name)
+              send_slack_blocks(blocks)
           "
