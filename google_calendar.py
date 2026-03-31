@@ -396,6 +396,60 @@ CALENDAR_USERS = {
     'donghyun131013@gmail.com': '동현',
 }
 
+# 전체 일정(공부 필터 없음)을 슬랙으로 보낼 캘린더
+SCHEDULE_USERS = {
+    'revolo@gmail.com': '나',
+}
+
+
+def daily_all_blocks(calendar_id, name=''):
+    """당일 전체 일정을 Slack Block Kit 형식으로 반환"""
+    service = get_service()
+    kst = datetime.timezone(datetime.timedelta(hours=9))
+    today = datetime.datetime.now(kst).replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow = today + datetime.timedelta(days=1)
+
+    events_result = service.events().list(
+        calendarId=calendar_id,
+        timeMin=today.isoformat(),
+        timeMax=tomorrow.isoformat(),
+        singleEvents=True,
+        orderBy='startTime'
+    ).execute()
+
+    events = events_result.get('items', [])
+    title_name = f"{name} " if name else ""
+    date_str = today.strftime('%Y-%m-%d')
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": f"📅 {title_name}오늘의 일정 - {date_str}"}
+        }
+    ]
+
+    if not events:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "오늘 일정이 없습니다."}
+        })
+    else:
+        for event in events:
+            raw_start = event['start'].get('dateTime', event['start'].get('date'))
+            time_str = raw_start[11:16] if 'T' in raw_start else '종일'
+            summary = event.get('summary', '(제목 없음)')
+            description = event.get('description', '') or ''
+            desc_str = f"\n└ {description.strip()}" if description.strip() else ''
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"• *{time_str}* {summary}{desc_str}"
+                }
+            })
+
+    return blocks
+
 
 def daily_schedule_text(calendar_id, name=''):
     """당일 일정 조회 후 슬랙 메시지 텍스트 반환"""

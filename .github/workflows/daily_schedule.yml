@@ -28,8 +28,11 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_SCHEDULE }}
         run: |
           python -c "
-          from google_calendar import daily_schedule_blocks, send_slack_blocks, CALENDAR_USERS
+          from google_calendar import daily_schedule_blocks, daily_all_blocks, send_slack_blocks, CALENDAR_USERS, SCHEDULE_USERS
           for calendar_id, name in CALENDAR_USERS.items():
               blocks = daily_schedule_blocks(calendar_id=calendar_id, name=name)
+              send_slack_blocks(blocks)
+          for calendar_id, name in SCHEDULE_USERS.items():
+              blocks = daily_all_blocks(calendar_id=calendar_id, name=name)
               send_slack_blocks(blocks)
           "
