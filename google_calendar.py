@@ -398,7 +398,7 @@ CALENDAR_USERS = {
 
 # 전체 일정(공부 필터 없음)을 슬랙으로 보낼 캘린더
 SCHEDULE_USERS = {
-    'revolo@gmail.com': '나',
+    'revolo@gmail.com': '희성',
 }
 
 
