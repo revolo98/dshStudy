@@ -434,19 +434,47 @@ def daily_all_blocks(calendar_id, name=''):
             "text": {"type": "mrkdwn", "text": "오늘 일정이 없습니다."}
         })
     else:
+        done_count = 0
         for event in events:
             raw_start = event['start'].get('dateTime', event['start'].get('date'))
             time_str = raw_start[11:16] if 'T' in raw_start else '종일'
             summary = event.get('summary', '(제목 없음)')
             description = event.get('description', '') or ''
-            desc_str = f"\n└ {description.strip()}" if description.strip() else ''
-            blocks.append({
+            done = '완료' in description
+            if done:
+                done_count += 1
+            mark = "✅" if done else "⬜"
+            section = {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"• *{time_str}* {summary}{desc_str}"
+                    "text": f"{mark} *{time_str}* {summary}"
                 }
-            })
+            }
+            if not done:
+                section["accessory"] = {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "완료 ✅"},
+                    "style": "primary",
+                    "action_id": f"mark_done_{event['id']}",
+                    "value": json.dumps({
+                        "event_id": event['id'],
+                        "calendar_id": calendar_id,
+                        "name": name
+                    })
+                }
+            blocks.append(section)
+
+        blocks.append({"type": "divider"})
+        total = len(events)
+        overall = f"{done_count/total*100:.0f}%" if total > 0 else "일정없음"
+        blocks.append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"📊 완료율: *{overall}* ({done_count}/{total})"
+            }
+        })
 
     return blocks
 
