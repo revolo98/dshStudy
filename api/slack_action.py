@@ -62,7 +62,8 @@ class handler(BaseHTTPRequestHandler):
                         f"• timestamp: `{timestamp}`\n"
                         f"• computed: `{computed[:20]}...`\n"
                         f"• received: `{signature[:20]}...`\n"
-                        f"• body 길이: {len(body)}"
+                        f"• body 길이: {len(body)}\n"
+                        f"• body 앞 80자: `{body[:80]}`"
                     )})
             except Exception:
                 pass
