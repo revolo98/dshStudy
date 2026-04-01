@@ -46,6 +46,26 @@ class handler(BaseHTTPRequestHandler):
             return
 
         if not verify_slack_signature(body, timestamp, signature):
+            # 디버그: 서명 불일치 원인 파악
+            signing_secret = os.environ.get('SLACK_SIGNING_SECRET', '')
+            base_string = f"v0:{timestamp}:{body.decode('utf-8')}"
+            import hashlib as _hs
+            computed = 'v0=' + hmac.new(signing_secret.encode(), base_string.encode(), _hs.sha256).hexdigest()
+            try:
+                params = parse_qs(body.decode('utf-8'))
+                payload_raw = json.loads(params.get('payload', ['{}'])[0])
+                response_url = payload_raw.get('response_url', '')
+                if response_url:
+                    requests.post(response_url, json={"text": (
+                        f"🔍 서명 디버그\n"
+                        f"• secret 설정 여부: {'✅' if signing_secret else '❌'}\n"
+                        f"• timestamp: `{timestamp}`\n"
+                        f"• computed: `{computed[:20]}...`\n"
+                        f"• received: `{signature[:20]}...`\n"
+                        f"• body 길이: {len(body)}"
+                    )})
+            except Exception:
+                pass
             self._respond(401, 'Invalid signature')
             return
 
