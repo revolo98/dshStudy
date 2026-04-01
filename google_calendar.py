@@ -242,27 +242,50 @@ def mark_event_done(event_id, calendar_id='primary'):
 
 
 def parse_sub_items(description):
-    """설명에서 [항목] 형식의 세부내역 파싱.
-    반환: [(base_text, is_done), ...]  예) [과제1] → ('과제1', False), [과제1-완료] → ('과제1', True)
+    """설명에서 세부내역 파싱.
+    - [항목] 형식이 있으면 그 방식 사용
+    - 없으면 줄 단위로 파싱 (각 줄 = 항목)
+    반환: [(base_text, is_done), ...]
+    완료 표시: [항목-완료] 또는 줄 끝에 -완료
     """
     if not description:
         return []
-    matches = re.findall(r'\[([^\]]+)\]', description)
+    bracket_items = re.findall(r'\[([^\]]+)\]', description)
+    if bracket_items:
+        items = []
+        for m in bracket_items:
+            if m.endswith('-완료'):
+                items.append((m[:-3], True))
+            else:
+                items.append((m, False))
+        return items
+    # 줄 단위 파싱
     items = []
-    for m in matches:
-        if m.endswith('-완료'):
-            items.append((m[:-3], True))
+    for line in description.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.endswith('-완료'):
+            items.append((line[:-3].strip(), True))
         else:
-            items.append((m, False))
+            items.append((line, False))
     return items
 
 
 def mark_sub_item_done(event_id, item_text, calendar_id='primary'):
-    """이벤트 설명에서 [item_text]를 [item_text-완료]로 수정"""
+    """이벤트 설명에서 item_text 항목을 완료 처리.
+    - [항목] 형식이면 [항목-완료]로 수정
+    - 줄 단위면 해당 줄 끝에 -완료 추가
+    """
     service = get_service()
     event = service.events().get(calendarId=calendar_id, eventId=event_id).execute()
     description = event.get('description', '') or ''
-    new_description = description.replace(f'[{item_text}]', f'[{item_text}-완료]')
+    if f'[{item_text}]' in description:
+        new_description = description.replace(f'[{item_text}]', f'[{item_text}-완료]')
+    else:
+        lines = description.splitlines()
+        new_lines = [f'{item_text}-완료' if line.strip() == item_text else line for line in lines]
+        new_description = '\n'.join(new_lines)
     if new_description != description:
         event['description'] = new_description
         service.events().update(calendarId=calendar_id, eventId=event_id, body=event).execute()
