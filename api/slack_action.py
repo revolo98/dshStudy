@@ -62,6 +62,13 @@ class handler(BaseHTTPRequestHandler):
                 action = actions[0]
                 action_id = action.get('action_id', '')
 
+                response_url = payload.get('response_url', '')
+
+                def reply_error(msg):
+                    print(f"[ERROR] {msg}")
+                    if response_url:
+                        requests.post(response_url, json={"text": f"❌ 오류: {msg}"})
+
                 if action_id.startswith('mark_done_'):
                     try:
                         value = json.loads(action['value'])
@@ -72,14 +79,14 @@ class handler(BaseHTTPRequestHandler):
                         mark_event_done(event_id, calendar_id)
 
                         updated_blocks = daily_schedule_blocks(calendar_id, name)
-                        response_url = payload.get('response_url', '')
                         if response_url:
                             requests.post(response_url, json={
                                 "replace_original": True,
                                 "blocks": updated_blocks
                             })
                     except Exception as e:
-                        print(f"Error processing action: {e}")
+                        import traceback
+                        reply_error(f"{e}\n{traceback.format_exc()}")
 
                 elif action_id.startswith('mark_item_'):
                     try:
@@ -97,14 +104,14 @@ class handler(BaseHTTPRequestHandler):
                         else:
                             updated_blocks = daily_schedule_blocks(calendar_id, name)
 
-                        response_url = payload.get('response_url', '')
                         if response_url:
                             requests.post(response_url, json={
                                 "replace_original": True,
                                 "blocks": updated_blocks
                             })
                     except Exception as e:
-                        print(f"Error processing action: {e}")
+                        import traceback
+                        reply_error(f"{e}\n{traceback.format_exc()}")
 
         self._respond(200, '')
 
