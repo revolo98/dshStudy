@@ -45,10 +45,9 @@ class handler(BaseHTTPRequestHandler):
             self._respond(400, 'Invalid timestamp')
             return
 
-        # TODO: 서명 검증 복원 필요
-        # if not verify_slack_signature(body, timestamp, signature):
-        #     self._respond(401, 'Invalid signature')
-        #     return
+        if not verify_slack_signature(body, timestamp, signature):
+            self._respond(401, 'Invalid signature')
+            return
 
         try:
             params = parse_qs(body.decode('utf-8'))
