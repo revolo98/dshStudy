@@ -19,7 +19,7 @@ from google_calendar import mark_event_done, mark_sub_item_done, daily_schedule_
 
 
 def verify_slack_signature(body: bytes, timestamp: str, signature: str) -> bool:
-    signing_secret = os.environ.get('SLACK_SIGNING_SECRET', '').encode('utf-8')
+    signing_secret = os.environ.get('SLACK_SIGNING_SECRET', '').strip().encode('utf-8')
     if not signing_secret:
         return False
     base_string = f"v0:{timestamp}:{body.decode('utf-8')}".encode('utf-8')
@@ -46,27 +46,6 @@ class handler(BaseHTTPRequestHandler):
             return
 
         if not verify_slack_signature(body, timestamp, signature):
-            # 디버그: 서명 불일치 원인 파악
-            signing_secret = os.environ.get('SLACK_SIGNING_SECRET', '')
-            base_string = f"v0:{timestamp}:{body.decode('utf-8')}"
-            import hashlib as _hs
-            computed = 'v0=' + hmac.new(signing_secret.encode(), base_string.encode(), _hs.sha256).hexdigest()
-            try:
-                params = parse_qs(body.decode('utf-8'))
-                payload_raw = json.loads(params.get('payload', ['{}'])[0])
-                response_url = payload_raw.get('response_url', '')
-                if response_url:
-                    requests.post(response_url, json={"text": (
-                        f"🔍 서명 디버그\n"
-                        f"• secret 설정 여부: {'✅' if signing_secret else '❌'}\n"
-                        f"• timestamp: `{timestamp}`\n"
-                        f"• computed: `{computed[:20]}...`\n"
-                        f"• received: `{signature[:20]}...`\n"
-                        f"• body 길이: {len(body)}\n"
-                        f"• body 앞 80자: `{body[:80]}`"
-                    )})
-            except Exception:
-                pass
             self._respond(401, 'Invalid signature')
             return
 
