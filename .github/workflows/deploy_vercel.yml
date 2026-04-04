@@ -9,6 +9,7 @@ on:
       - 'google_calendar.py'
       - 'vercel.json'
       - 'requirements.txt'
+  workflow_dispatch:
 
 jobs:
   deploy:
