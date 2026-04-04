@@ -8,7 +8,11 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+SCOPES = [
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive.file',
+]
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CREDENTIALS_FILE = os.path.join(BASE_DIR, 'credentials.json')
 TOKEN_FILE = os.path.join(BASE_DIR, 'token.json')
@@ -37,6 +41,29 @@ def get_service():
                 token.write(creds.to_json())
 
     return build('calendar', 'v3', credentials=creds)
+
+
+def get_sheets_service():
+    """Google Sheets API 서비스 반환 (get_service와 동일 인증 사용)"""
+    creds = None
+
+    token_json = os.environ.get('GOOGLE_TOKEN')
+    if token_json:
+        creds = Credentials.from_authorized_user_info(json.loads(token_json), SCOPES)
+    elif os.path.exists(TOKEN_FILE):
+        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
+            creds = flow.run_local_server(port=0)
+        if not os.environ.get('GOOGLE_TOKEN'):
+            with open(TOKEN_FILE, 'w') as token:
+                token.write(creds.to_json())
+
+    return build('sheets', 'v4', credentials=creds)
 
 
 def list_events(days=7, calendar_id='primary'):
@@ -147,7 +174,7 @@ def study_report(calendar_id, days=3):
     ).execute()
 
     events = events_result.get('items', [])
-    subjects = ['국어', '영어', '수학']
+    subjects = ['국어', '영어', '수학', '주말 할 일']
 
     # 날짜별로 그룹핑
     by_date = {}
@@ -309,7 +336,7 @@ def daily_schedule_blocks(calendar_id, name=''):
     ).execute()
 
     events = events_result.get('items', [])
-    subjects = ['국어', '영어', '수학']
+    subjects = ['국어', '영어', '수학', '주말 할 일']
     study_events = []
 
     for event in events:
@@ -417,11 +444,30 @@ def daily_schedule_blocks(calendar_id, name=''):
             }
         })
 
+    blocks.append({"type": "divider"})
+    blocks.append({
+        "type": "actions",
+        "elements": [
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "📊 공부 리포트 요청"},
+                "action_id": "trigger_workflow_study_report",
+                "value": "study_report"
+            },
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "🔄 일정 다시 받기"},
+                "action_id": "trigger_workflow_daily_schedule",
+                "value": "daily_schedule"
+            }
+        ]
+    })
+
     return blocks
 
 
 def study_report_text(calendar_id, days=3, name=''):
-    """공부 현황 리포트 텍스트 반환 + 카카오톡 전송"""
+    """공부 현황 리포트 텍스트 반환"""
     service = get_service()
     now = datetime.datetime.now(datetime.UTC)
     start = now - datetime.timedelta(days=days)
@@ -435,7 +481,7 @@ def study_report_text(calendar_id, days=3, name=''):
     ).execute()
 
     events = events_result.get('items', [])
-    subjects = ['국어', '영어', '수학']
+    subjects = ['국어', '영어', '수학', '주말 할 일']
 
     by_date = {}
     for event in events:
@@ -451,32 +497,53 @@ def study_report_text(calendar_id, days=3, name=''):
         by_date[date_key].append({
             'subject': matched[0],
             'title': title,
+            'description': description,
             'done': '완료' in description,
             'time': raw_date[11:16] if 'T' in raw_date else '',
         })
 
-    title = f"{name} " if name else ""
-    lines = [f"📚 {title}공부 현황 리포트 (최근 {days}일)\n"]
+    title_prefix = f"{name} " if name else ""
+    lines = [f"📚 {title_prefix}공부 현황 리포트 (최근 {days}일)\n"]
     total_done = 0
     total_all = 0
 
     for date_key in sorted(by_date.keys()):
         items = by_date[date_key]
-        day_done = sum(1 for i in items if i['done'])
-        lines.append(f"📅 {date_key} ({day_done}/{len(items)} 완료)")
+        day_done = 0
+        day_all = 0
+
+        event_lines = []
         for item in items:
-            mark = '✅' if item['done'] else '❌'
-            time_str = f" {item['time']}" if item['time'] else ''
-            lines.append(f"  {mark} [{item['subject']}] {item['title']}{time_str}")
+            sub_items = parse_sub_items(item['description'])
+            time_str = f" `{item['time']}`" if item['time'] else ''
+            if sub_items:
+                sub_done = sum(1 for _, is_done in sub_items if is_done)
+                sub_all = len(sub_items)
+                day_done += sub_done
+                day_all += sub_all
+                header_mark = "✅" if sub_done == sub_all else "📝"
+                event_lines.append(f"  {header_mark} [{item['subject']}] {item['title']}{time_str}  ({sub_done}/{sub_all})")
+                for item_text, is_done in sub_items:
+                    mark = '✅' if is_done else '❌'
+                    event_lines.append(f"    {mark} {item_text}")
+            else:
+                done = item['done']
+                day_done += 1 if done else 0
+                day_all += 1
+                mark = '✅' if done else '❌'
+                event_lines.append(f"  {mark} [{item['subject']}] {item['title']}{time_str}")
+
+        lines.append(f"📅 {date_key}  ({day_done}/{day_all} 완료)")
+        lines.extend(event_lines)
         lines.append('')
         total_done += day_done
-        total_all += len(items)
+        total_all += day_all
 
     if not by_date:
         lines.append("해당 기간에 공부 일정이 없습니다.")
 
     overall = f"{total_done/total_all*100:.0f}%" if total_all > 0 else "일정없음"
-    lines.append(f"📊 전체 완료율: {overall} ({total_done}/{total_all})")
+    lines.append(f"📊 전체 완료율: *{overall}* ({total_done}/{total_all})")
 
     message = "\n".join(lines)
     print(message)
@@ -601,6 +668,25 @@ def daily_all_blocks(calendar_id, name=''):
                 "text": f"📊 완료율: *{overall}* ({done_count}/{total})"
             }
         })
+
+    blocks.append({"type": "divider"})
+    blocks.append({
+        "type": "actions",
+        "elements": [
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "📊 공부 리포트 요청"},
+                "action_id": "trigger_workflow_study_report",
+                "value": "study_report"
+            },
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "🔄 일정 다시 받기"},
+                "action_id": "trigger_workflow_daily_schedule",
+                "value": "daily_schedule"
+            }
+        ]
+    })
 
     return blocks
 

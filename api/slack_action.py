@@ -69,6 +69,21 @@ class handler(BaseHTTPRequestHandler):
                     if response_url:
                         requests.post(response_url, json={"text": f"❌ 오류: {msg}"})
 
+                def trigger_github_workflow(workflow_file):
+                    github_token = os.environ.get('GITHUB_TOKEN', '')
+                    github_repo = os.environ.get('GITHUB_REPO', 'revolo98/dshStudy')
+                    url = f"https://api.github.com/repos/{github_repo}/actions/workflows/{workflow_file}.yml/dispatches"
+                    resp = requests.post(
+                        url,
+                        headers={
+                            "Authorization": f"Bearer {github_token}",
+                            "Accept": "application/vnd.github+json",
+                            "X-GitHub-Api-Version": "2022-11-28"
+                        },
+                        json={"ref": "main"}
+                    )
+                    return resp.status_code
+
                 if action_id.startswith('mark_done_'):
                     try:
                         value = json.loads(action['value'])
@@ -109,6 +124,23 @@ class handler(BaseHTTPRequestHandler):
                                 "replace_original": True,
                                 "blocks": updated_blocks
                             })
+                    except Exception as e:
+                        import traceback
+                        reply_error(f"{e}\n{traceback.format_exc()}")
+
+                elif action_id.startswith('trigger_workflow_'):
+                    try:
+                        workflow_name = action.get('value', '')
+                        status = trigger_github_workflow(workflow_name)
+                        if status == 204:
+                            label = '📊 공부 리포트' if workflow_name == 'study_report' else '🔄 일정 알림'
+                            if response_url:
+                                requests.post(response_url, json={
+                                    "response_type": "ephemeral",
+                                    "text": f"✅ {label} 워크플로우 실행 요청 완료! 잠시 후 메시지가 전송됩니다."
+                                })
+                        else:
+                            reply_error(f"GitHub API 응답: {status}")
                     except Exception as e:
                         import traceback
                         reply_error(f"{e}\n{traceback.format_exc()}")
