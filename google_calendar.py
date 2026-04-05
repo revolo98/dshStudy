@@ -10,8 +10,6 @@ from googleapiclient.discovery import build
 
 SCOPES = [
     'https://www.googleapis.com/auth/calendar',
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/drive.file',
 ]
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CREDENTIALS_FILE = os.path.join(BASE_DIR, 'credentials.json')
