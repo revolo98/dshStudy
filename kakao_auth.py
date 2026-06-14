@@ -10,6 +10,7 @@ def get_auth_code():
         f"?client_id={REST_API_KEY}"
         f"&redirect_uri={REDIRECT_URI}"
         f"&response_type=code"
+        f"&scope=talk_message"
     )
     print("브라우저에서 카카오 로그인 후 리다이렉트된 URL을 복사해주세요.")
     print(f"\n아래 URL이 자동으로 열립니다:\n{url}\n")

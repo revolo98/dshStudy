@@ -222,6 +222,48 @@ def study_report(calendar_id, days=3):
     return by_date
 
 
+def _get_kakao_access_token(refresh_token: str):
+    """리프레시 토큰으로 카카오 액세스 토큰 발급"""
+    rest_api_key = os.environ.get('KAKAO_REST_API_KEY', 'a721c96b55df6f9fcbb9f6a837060b99')
+    res = requests.post(
+        "https://kauth.kakao.com/oauth/token",
+        data={
+            "grant_type": "refresh_token",
+            "client_id": rest_api_key,
+            "refresh_token": refresh_token,
+        }
+    )
+    data = res.json()
+    if 'access_token' not in data:
+        print("❌ 카카오 토큰 갱신 실패:", data)
+        return None
+    return data['access_token']
+
+
+def send_kakao_me(message: str, refresh_token: str = ''):
+    """카카오 나에게 보내기 (텍스트 메시지)"""
+    token = refresh_token or os.environ.get('KAKAO_REFRESH_TOKEN', '')
+    if not token:
+        print("❌ KAKAO_REFRESH_TOKEN이 설정되지 않았습니다.")
+        return
+    access_token = _get_kakao_access_token(token)
+    if not access_token:
+        return
+    res = requests.post(
+        "https://kapi.kakao.com/v2/api/talk/memo/default/send",
+        headers={"Authorization": f"Bearer {access_token}"},
+        data={"template_object": json.dumps({
+            "object_type": "text",
+            "text": message[:2000],
+            "link": {"web_url": "", "mobile_web_url": ""}
+        }, ensure_ascii=False)}
+    )
+    if res.status_code == 200 and res.json().get('result_code') == 0:
+        print("✅ 카카오 전송 완료!")
+    else:
+        print("❌ 카카오 전송 실패:", res.status_code, res.text)
+
+
 def send_slack(message: str, webhook_url: str = ''):
     """Slack 메시지 전송"""
     url = webhook_url or os.environ.get('SLACK_WEBHOOK_URL', '')
@@ -728,6 +770,7 @@ if __name__ == '__main__':
     for calendar_id, name in CALENDAR_USERS.items():
         msg = study_report_text(calendar_id=calendar_id, days=3, name=name)
         send_slack(msg)
+        send_kakao_me(msg)
 
     # 2. 일정 추가 예시 (주석 해제 후 사용)
     # add_event(
